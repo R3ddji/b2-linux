@@ -7,8 +7,6 @@
   - [1. Installation](#1-installation)
   - [2. Avancer vers la maîtrise du service](#2-avancer-vers-la-maîtrise-du-service)
 - [II. Une stack web plus avancée](#ii-une-stack-web-plus-avancée)
-  - [1. Intro](#1-intro)
-  - [2. Setup](#2-setup)
     - [A. Serveur Web et NextCloud](#a-serveur-web-et-nextcloud)
     - [B. Base de données](#b-base-de-données)
     - [C. Finaliser l'installation de NextCloud](#c-finaliser-linstallation-de-nextcloud)
@@ -704,99 +702,106 @@ Au caractère Ligne:1 : 1
 
 # II. Une stack web plus avancée
 
-## 1. Intro
-
-> Pas mal de blabla nécessaire avant de vous lancer. Lisez bien la partie en entier.
-
-Le serveur web `web.tp2.linux` sera le serveur qui accueillera les clients. C'est sur son IP que les clients devront aller pour visiter le site web.  
-
-La serveur de base de données `db.tp2.linux` sera un serveur uniquement accessible depuis `web.tp2.linux`. Les clients ne pourront pas y accéder. Le serveur de base de données stocke les infos nécessaires au serveur web, pour le bon fonctionnement du site web.
-
----
-
-Bon j'ai un peu réfléchi et le but pour nous là c'est juste d'avoir un serv web + une db, peu importe ce que c'est le site. J'ai pas envie d'aller deep dans la conf de l'un ou de l'autre avec vous pour le moment. Donc on va installer un truc un peu clé en main : Nextcloud.
-
-En plus c'est utile comme truc : c'est un p'tit serveur pour héberger ses fichiers via une WebUI, style Google Drive. Mais on l'héberge nous-mêmes :)
-
-Il y a [**une doc officielle Rocky Linux** plutôt bien fichue pour l'install de Nextcloud](https://docs.rockylinux.org/guides/cms/cloud_server_using_nextcloud/#next-steps), je vous laisse la suivre.
-
-⚠️⚠️⚠️**ATTENTION** lisez bien toute la suite avant de vous lancer dans l'install, **lisez la partie en entier.** Ca vous évitera bien des soucis. ⚠️⚠️⚠️
-
-Dans la doc officielle, on vous fait installer le serveur web (Apache) et la base de données (MariaDB) sur la même machine. **Ce n'est PAS ce que nous voulons : nous voulons avoir chaque service sur une machine dédiée.** Donc vous allez devoir ajuster la doc un petit peu. Rien de bien violent :
-
-- quand on vous parle du serveur web, vous faites ça sur `web.tp2.linux`
-- quand on vous parle de la base de données, vous faites ça sur `db.tp2.linux`
-- à la fin, quand c'est en place, on vous demande d'aller l'interface Web de nextcloud et d'y saisir l'IP de la base de données, pour que NextCloud puisse s'y connecter. Vous saisirez ici l'IP de `db.tp2.linux` à la place de `localhost`
-
----
----
-
-**Aussi** dans la doc vous est fourni un lien pour installer MariaDB de façon secure. C'est parfait, suivez-le.  
-**Par contre** on ne vous donnez aucune infos sur quelle base de données créer dans le serveur de base de données.  
-**Donc** avant de démarrer NextCloud, vous devrez :
-
-- démarrer le service de base de données sur `db.tp2.linux`
-- vous connecter au serveur de base de données
-- exécutez des commandes SQL pour configurer la base, qu'elle soit utilisable par NextCloud
-
----
----
-
-**Enfin, quelques tips en vrac pour que vous dérouliez l'install dans de bonnes conditions.** Certains tips vont vous paraître random. Beaucoup moins une fois que vous aurez déroulé la doc :
-
-➜ ***Lisez*** et ***suivez bien toutes les instructions***. Toutes les étapes sont strictement nécessaires.
-
-➜ Vous pouvez récupérer votre **timezone** plus facilement en une simple commande : `timedatectl`.
-
-➜ **Si on vous parle d'un dossier et qu'il n'existe pas, créez-le.** Si vous ne savez quelles permissions lui donner, donnez-lui les mêmes permissions que les autres fichiers/dossiers qui se trouvent dans le même dossier.
-
-➜ **Une fois que vous aurez fini d'installer NextCloud**, vous devez visiter l'interface Web. Vous ouvrirez donc votre navigateur, et vous rendrez à l'URL `http://web.tp2.linux`. La page d'accueil de NextCloud s'affichera. **NE VOUS CONNECTEZ PAS** et passez à l'installation de la base de données. C'est sur cet écran que vous indiquerez à NextCloud comment se connecter à votre base, une fois que vous l'aurez installé.
-
-➜ Dans la doc, il est dit : "As noted earlier, we are using the ***"Apache Sites Enabled"*** procedure found here to configure Apache"
-
-Cette ***"Apache Sites Enabled" procedure*** fait référence à une façon d'organiser le dossier `/etc/httpd` pour pas que ce soit le bordel :
-
-- on a créé cette façon de faire car Apache est souvent utilisé pour héberger plusieurs sites web en même temps
-- l'idée c'est de faire
-  - un dossier `sites-available/` qui contient un fichier de configuration par site web
-  - un dossier `sites-enabled/` qui contient des liens vers les fichiers de `sites-available`
-- de cette façon il est plus simple de s'y retrouver :
-  - un fichier par site, c'est clean
-  - un dossier dédié à la conf des sites, et pas à la conf d'Apache plus générale, c'est clean
-  - si on veut mettre un site hors-ligne sans faire de la crasse (commenter des lignes, supprimer la conf liée au site etc.) c'est EZ on a juste a supprimer le lien dans `sites-enabled/` ce qui garde intact le vrai fichier de conf dans `sites-available/`
-- bref c'est clean quoi :)
-
-**SAUF QUE** si vous suivez juste la doc, ça va pas fonctionner. En effet, les fichiers dans `sites-enabled/` ne seront jamais lus par défaut. Vous devez donc ajouter la ligne suivante dans le fichier `/etc/httpd/httpd.conf` (tout en bas) :
-
-```bash
-IncludeOptional sites-enabled/*
-```
-
-## 2. Setup
-
-🖥️ **VM db.tp2.linux**
-
-| Machine         | IP            | Service                 | Port ouvert | IP autorisées |
-|-----------------|---------------|-------------------------|-------------|---------------|
-| `web.tp2.linux` | `10.102.1.11` | Serveur Web             | ?           | ?             |
-| `db.tp2.linux`  | `10.102.1.12` | Serveur Base de Données | ?           | ?             |
-
-> Ce tableau devra figurer à la fin du rendu, avec les ? remplacés par la bonne valeur (un seul tableau à la fin). Je vous le remets à chaque fois, à des fins de clarté, pour lister les machines qu'on a à chaque instant du TP.
-
 ### A. Serveur Web et NextCloud
 
 **Créez les 2 machines et déroulez la [📝**checklist**📝](#checklist).**
 
 🌞 Install du serveur Web et de NextCloud sur `web.tp2.linux`
 
-- déroulez [la doc d'install de Rocky](https://docs.rockylinux.org/guides/cms/cloud_server_using_nextcloud/#next-steps)
-  - **uniquement pour le serveur Web + NextCloud**, vous ferez la base de données MariaDB après
-  - quand ils parlent de la base de données, juste vous sautez l'étape, on le fait après :)
-- je veux dans le rendu **toutes** les commandes réalisées
-  - n'oubliez pas la commande `history` qui permet de voir toutes les commandes tapées précédemment
+```
+[leo@web ~]$ dnf install epel-release
+```
+```
+[leo@web ~]$ sudo dnf update
+```
+```
+[leo@web ~]$ sudo dnf install https://rpms.remirepo.net/enterprise/remi-release-8.rpm
+```
+```
+[leo@web ~]$ sudo dnf module list php
+[...]
+Rocky Linux 8 - AppStream
+Name               Stream                 Profiles                                Summary
+php                7.2 [d]                common [d], devel, minimal              PHP scripting language
+php                7.3                    common [d], devel, minimal              PHP scripting language
+php                7.4                    common [d], devel, minimal              PHP scripting language
 
-Une fois que vous avez la page d'accueil de NextCloud sous les yeux avec votre navigateur Web, **NE VOUS CONNECTEZ PAS** et continuez le TP
+Remi's Modular repository for Enterprise Linux 8 - x86_64
+Name               Stream                 Profiles                                Summary
+php                remi-7.2               common [d], devel, minimal              PHP scripting language
+php                remi-7.3               common [d], devel, minimal              PHP scripting language
+php                remi-7.4               common [d], devel, minimal              PHP scripting language
+php                remi-8.0               common [d], devel, minimal              PHP scripting language
+php                remi-8.1               common [d], devel, minimal              PHP scripting language
+```
+```
+[leo@web ~]$ sudo dnf module enable php:remi-7.4
+```
+```
+[leo@web ~]$ dnf module list php
+[...]
+php               remi-7.4 [e]              common [d], devel, minimal             PHP scripting language
+[...]
+```
+```
+[leo@web ~]$ sudo dnf install httpd mariadb-server vim wget zip unzip libxml2 openssl php74-php php74-php-ctype php74-php-curl php74-php-gd php74-php-iconv php74-php-json php74-php-libxml php74-php-mbstring php74-php-openssl php74-php-posix php74-php-session php74-php-xml php74-php-zip php74-php-zlib php74-php-pdo php74-php-mysqlnd php74-php-intl php74-php-bcmath php74-php-gmp
+```
+```
+[leo@web ~]$ sudo vim /etc/httpd/sites-available/web.tp2.linux
+  DocumentRoot /var/www/sub-domains/web.tp2.linux/html/
+  ServerName  web.tp2.linux
 
+  <Directory /var/www/sub-domains/web.tp2.linux/html/>
+    Require all granted
+    AllowOverride All
+    Options FollowSymLinks MultiViews
+
+    <IfModule mod_dav.c>
+      Dav off
+    </IfModule>
+  </Directory>
+</VirtualHost>
+```
+```
+[leo@web httpd]$ sudo ln -s /etc/httpd/sites-available/web.tp2.linux /etc/httpd/sites-enabled/
+```
+```
+[leo@web httpd]$ sudo mkdir -p /var/www/sub-domains/web.tp2.linux/html
+```
+```
+[leo@web httpd]$ timedatectl
+               Local time: Sat 2021-10-09 16:05:52 CEST
+           Universal time: Sat 2021-10-09 14:05:52 UTC
+                 RTC time: Sat 2021-10-09 14:05:52
+                Time zone: Europe/Paris (CEST, +0200)
+System clock synchronized: no
+              NTP service: inactive
+          RTC in local TZ: no
+```
+```
+[leo@web ~]$ wget https://download.nextcloud.com/server/releases/nextcloud-21.0.1.zip
+```
+```
+[leo@web ~]$ unzip nextcloud-21.0.1.zip
+```
+```
+[leo@web ~]$ cd nextcloud/
+```
+```
+[leo@web nextcloud]$ sudo cp -Rf * /var/www/sub-domains/web.tp2.linux/html/
+```
+```
+[leo@web ~]$ chown -Rf apache.apache /var/www/sub-domains/web.tp2.linux/html
+```
+```
+[leo@web ~]$ sudo mkdir /var/www/sub-domains/web.tp2.linux/html/data
+```
+```
+[leo@web ]$ sudo mv /var/www/sub-domains/web.tp2.linux/html/data /var/www/sub-domains/web.tp2.linux/
+```
+```
+[leo@web html]$ sudo systemctl restart httpd
+```
 📁 **Fichier `/etc/httpd/conf/httpd.conf`**  
 📁 **Fichier `/etc/httpd/conf/sites-available/web.tp2.linux`**
 
