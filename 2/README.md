@@ -17,10 +17,6 @@
 
 🖥️ **VM web.tp2.linux**
 
-| Machine         | IP            | Service                 | Port ouvert | IP autorisées |
-|-----------------|---------------|-------------------------|-------------|---------------|
-| `web.tp2.linux` | `10.102.1.11` | Serveur Web             | ?           | ?             |
-
 🌞 **Installer le serveur Apache**
 
 ```
@@ -151,7 +147,6 @@ LISTEN          0               128                               [::]:22       
 
 🌞 **TEST**
 
-- vérifier que le service est démarré
 ```
 [leo@web ~]$ sudo systemctl status httpd.service
 ● httpd.service - The Apache HTTP Server
@@ -173,12 +168,11 @@ Sep 29 16:33:38 web.tp2.linux systemd[1]: Starting The Apache HTTP Server...
 Sep 29 16:33:38 web.tp2.linux systemd[1]: Started The Apache HTTP Server.
 Sep 29 16:33:38 web.tp2.linux httpd[24124]: Server configured, listening on: port 80
 ```
-- vérifier qu'il est configuré pour démarrer automatiquement
 ```
 [leo@web ~]$ systemctl is-enabled httpd.service
 enabled
 ```
-- vérifier avec une commande curl localhost que vous joignez votre serveur web localement
+
 ```
 [leo@web ~]$ curl localhost
 <!doctype html>
@@ -704,8 +698,6 @@ Au caractère Ligne:1 : 1
 
 ### A. Serveur Web et NextCloud
 
-**Créez les 2 machines et déroulez la [📝**checklist**📝](#checklist).**
-
 🌞 Install du serveur Web et de NextCloud sur `web.tp2.linux`
 
 ```
@@ -809,71 +801,103 @@ System clock synchronized: no
 
 🌞 **Install de MariaDB sur `db.tp2.linux`**
 
-- déroulez [la doc d'install de Rocky](https://docs.rockylinux.org/guides/database/database_mariadb-server/)
-- manipulation 
-- je veux dans le rendu **toutes** les commandes réalisées
-- vous repérerez le port utilisé par MariaDB avec une commande `ss` exécutée sur `db.tp2.linux`
+```
+[leo@db ~]$ sudo dnf install mariadb-server
+```
+```
+[leo@db ~]$ mysql_secure_installation
+```
+```
+[leo@db ~]$ sudo ss -naplt
+[sudo] password for leo:
+State     Recv-Q    Send-Q       Local Address:Port       Peer Address:Port   Process
+LISTEN    0         128                0.0.0.0:22              0.0.0.0:*       users:(("sshd",pid=832,fd=5))
+LISTEN    0         80                       *:3306                  *:*       users:(("mysqld",pid=41296,fd=21))
+LISTEN    0         128                   [::]:22                 [::]:*       users:(("sshd",pid=832,fd=7))
+```
 
 🌞 **Préparation de la base pour NextCloud**
 
-- une fois en place, il va falloir préparer une base de données pour NextCloud :
-  - connectez-vous à la base de données à l'aide de la commande `sudo mysql -u root`
-  - exécutez les commandes SQL suivantes :
-
-```sql
-# Création d'un utilisateur dans la base, avec un mot de passe
-# L'adresse IP correspond à l'adresse IP depuis laquelle viendra les connexions. Cela permet de restreindre les IPs autorisées à se connecter.
-# Dans notre cas, c'est l'IP de web.tp2.linux
-# "meow" c'est le mot de passe :D
-CREATE USER 'nextcloud'@'10.102.1.11' IDENTIFIED BY 'meow';
-
-# Création de la base de donnée qui sera utilisée par NextCloud
-CREATE DATABASE IF NOT EXISTS nextcloud CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
-
-# On donne tous les droits à l'utilisateur nextcloud sur toutes les tables de la base qu'on vient de créer
-GRANT ALL PRIVILEGES ON nextcloud.* TO 'nextcloud'@'10.102.1.11';
-
-# Actualisation des privilèges
-FLUSH PRIVILEGES;
 ```
+MariaDB [(none)]> CREATE USER 'web'@'10.102.1.11' IDENTIFIED BY 'azerty';
+Query OK, 0 rows affected (0.001 sec)
 
-> Par défaut, vous avez le droit de vous connectez localement à la base si vous êtes `root`. C'est pour ça que `sudo mysql -u root` fonctionne, sans nous demander de mot de passe. Evidemment, n'importe quelles autres conditions ne permettent pas une connexion aussi facile à la base.
+MariaDB [(none)]> CREATE DATABASE IF NOT EXISTS web CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+Query OK, 1 row affected (0.001 sec)
 
+MariaDB [(none)]> GRANT ALL PRIVILEGES ON web.* TO 'web'@'10.102.1.11';
+Query OK, 0 rows affected (0.001 sec)
+
+MariaDB [(none)]> FLUSH PRIVILEGES;
+Query OK, 0 rows affected (0.001 sec)
+```
 🌞 **Exploration de la base de données**
-
-- afin de tester le bon fonctionnement de la base de données, vous allez essayer de vous connecter, comme NextCloud le fera :
-  - depuis la machine `web.tp2.linux` vers l'IP de `db.tp2.linux`
-  - vous pouvez utiliser la commande `mysql` pour vous connecter à une base de données depuis la ligne de commande
-    - par exemple `mysql -u <USER> -h <IP_DATABASE> -p`
-- utilisez les commandes SQL fournies ci-dessous pour explorer la base
-
-```sql
-SHOW DATABASES;
-USE <DATABASE_NAME>;
-SHOW TABLES;
 ```
+[leo@web ]$ sudo mysql -u nextcloud -h 10.102.1.12 -pmeow
+Welcome to the MariaDB monitor.  Commands end with ; or \g.
+Your MariaDB connection id is 8
+Server version: 10.3.28-MariaDB MariaDB Server
 
-- trouver une commande qui permet de lister tous les utilisateurs de la base de données
+Copyright (c) 2000, 2018, Oracle, MariaDB Corporation Ab and others.
 
-> Les utilisateurs de la base de données sont différents des utilisateurs du système Linux sous-jacent. Les utilisateurs de la base définissent des identifiants utilisés pour se connecter à la base afin d'y voir ou d'y modifier des données.
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+MariaDB [(none)]>
+```
+```
+SHOW DATABASES;
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| mysql              |         |
+| performance_schema |
+| web                |
++--------------------+
+5 rows in set (0.001 sec)
+```
+```
+use web
+Database changed
+```
+```
+SHOW TABLES;
+Empty set (0.001 sec)
+```
+```
+SELECT user FROM mysql.user;
++-----------+
+| user      |
++-----------+
+| root      |
+| root      |
+| root      |
++-----------+
+```
 
 ### C. Finaliser l'installation de NextCloud
 
 🌞 sur votre PC
-
-- modifiez votre fichier `hosts` (oui, celui de votre PC, de votre hôte)
-  - pour pouvoir joindre l'IP de la VM en utilisant le nom `web.tp2.linux`
-- avec un navigateur, visitez NextCloud à l'URL `http://web.tp2.linux`
-  - c'est possible grâce à la modification de votre fichier `hosts`
-- on va vous demander un utilisateur et un mot de passe pour créer un compte admin
-  - ne saisissez rien pour le moment
-- cliquez sur "Storage & Database" juste en dessous
-  - choisissez "MySQL/MariaDB"
-  - saisissez les informations pour que NextCloud puisse se connecter avec votre base
-- saisissez l'identifiant et le mot de passe admin que vous voulez, et validez l'installation
+```
+#
+127.0.0.1 localhost
+::1 localhost
+10.102.1.11	web.tp2.linux`
+```
+![](./img/Nextcloud.png)
 
 🌞 **Exploration de la base de données**
+```
+MariaDB [nextcloud]> SELECT COUNT(*) from information_schema.tables where TABLE_SCHEMA = 'nextcloud';
++----------+
+| COUNT(*) |
++----------+
+|       99 |
++----------+
+1 row in set (0.000 sec)
+```
 
-- connectez vous en ligne de commande à la base de données après l'installation terminée
-- déterminer combien de tables ont été crées par NextCloud lors de la finalisation de l'installation
-  - ***bonus points*** si la réponse à cette question est automatiquement donnée par une requête SQL
+| Machine         | IP            | Service                 | Port ouvert | IP autorisées |
+|-----------------|---------------|-------------------------|-------------|---------------|
+| `web.tp2.linux` | `10.102.1.11` | Serveur Web             | 80           | ?             |
+| `db.tp2.linux`  | `10.102.1.12` | Serveur Base de Données | 3306           |  10.102.1.11            |
