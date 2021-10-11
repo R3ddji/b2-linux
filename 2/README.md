@@ -851,13 +851,11 @@ SHOW DATABASES;
 +--------------------+
 | information_schema |
 | mysql              |         |
-| performance_schema |
-| web                |
+| performance_schema |               |
 +--------------------+
-5 rows in set (0.001 sec)
 ```
 ```
-use web
+use nextcloud
 Database changed
 ```
 ```
